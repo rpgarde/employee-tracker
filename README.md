@@ -41,6 +41,7 @@ Given more time, I would have loved to be able to do the following:
 * Have the ability to update and delete every single field
 * Have data validation to be able to prevent duplicate entries
 * Have proper Jest tests in place 
+* I used timeout functionalities to override some strange async behaviour, which is due to my lack of overall proficiency with asynchronous functions at the moment.
 
 ## Tests
 No tests installed on this repo. 
