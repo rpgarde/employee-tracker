@@ -2,16 +2,19 @@ const inquirer = require("inquirer");
 const mysql = require('mysql2');
 const cTable = require('console.table');
 require('dotenv').config();
+const util = require("util");
 
 const db = mysql.createConnection(
     {
-      host: 'localhost',
-      user: process.env.DB_USER,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME
+        host: 'localhost',
+        user: process.env.DB_USER,
+        password: process.env.DB_PASSWORD,
+        database: process.env.DB_NAME
     },
     console.log(`Connected to the books_db database.`)
-  );
+);
+
+db.query = util.promisify(db.query);
 
 const validator = (input) => {
     if (input.length === 0) {
@@ -22,12 +25,12 @@ const validator = (input) => {
     }
 }
 
-// const numValidator = (input) => {
-//     if (isNaN(input)) {
-//         return "please enter a number";
-//     }
-//     return true;
-// }
+const numValidator = (input) => {
+    if (isNaN(input)) {
+        return "please enter a number";
+    }
+    return true;
+}
 
 const introQuestions = [
     {
@@ -37,6 +40,7 @@ const introQuestions = [
         choices: [
             "View all departments",
             "View all roles",
+            "View all employees",
             "Add a department",
             "Add a role",
             "Add an employee",
@@ -48,28 +52,71 @@ const introQuestions = [
 
 const addDepartmentQuestion = [
     {
-        type:"input",
-        message:"What is the name of the department you would like to add?",
-        name:"departmentName",
-        validate:validator
+        type: "input",
+        message: "What is the name of the department you would like to add?",
+        name: "departmentName",
+        validate: validator
     }
 ]
+
+const departmentArray = () => {
+    return db.query('SELECT DISTINCT name from department')
+}
+
+const roleArray = () => {
+    return db.query('SELECT DISTINCT title from role')
+}
+
+const managerArray = () => {
+    return db.query('SELECT CONCAT(first_name," ",last_name) as manager_name from employee')
+}
 
 //Function to view all depts
 const viewDepartments = () => {
     console.log("Here are all the departments:")
-  db.query('SELECT * FROM department', function (err, results) {
-    console.table(results)
-  });
-}
-//View all roles
-const viewRoles = () => {
-    console.log("Here are all the roles:")
-  db.query('SELECT * FROM role', function (err, results) {
-    console.table(results)
-  });
+    db.query('SELECT * FROM department', function (err, results) {
+        if(err){
+            console.log(err)
+        }
+        return results
+    });
 }
 
+//View all rolesTHEN I am presented with the job title, role id, the department that role belongs to, and the salary for that role
+
+const viewRoles = () => {
+    console.log("Here are all the roles:")
+    db.query(`SELECT r.title,r.id as role_id,d.name as department,salary 
+        FROM role r
+        JOIN department d ON r.department_id = d.id`, function (err, results) {
+        console.table(results)
+    });
+}
+
+//View all employees
+const viewEmployees = () => {
+    console.log("Here are all the employees:")
+    db.query(
+        `SELECT 
+      e.ID as employee_id,
+      e.first_name,
+      e.last_name,
+      r.title as job_title,
+      d.name as department,
+      salary,
+      CONCAT(m.first_name," ",m.last_name) as manager
+
+      FROM 
+      employee e 
+      JOIN role r ON e.role_id = r.id 
+      JOIN department d ON r.department_id = d.id 
+      LEFT JOIN employee m ON e.manager_id = m.id 
+      `, function (err, results) {
+        console.table(results)
+    });
+}
+
+//Add departments
 const addDepartment = () => {
     inquirer.prompt(addDepartmentQuestion)
         .then((data) => {
@@ -78,71 +125,149 @@ const addDepartment = () => {
                     console.log(err);
                 }
                 console.log(results);
-                console.log("Success, here are all the departments")
-                db.query('SELECT * FROM department', function (err, results) {
-                    console.table(results)
-                })
+                console.log("Success!");
+                viewDepartments();
             })
         })
+}
+
+async function addRole() {
+    const addRoleQuestions = [
+        {
+            type: "input",
+            message: "What is the name of the role you would like to add?",
+            name: "roleName",
+            validate: validator
+        },
+        {
+            type: "list",
+            message: "What department does this role belong to?",
+            name: "departmentName",
+            choices: await departmentArray()
+        },
+        {
+            type: "input",
+            message: "What is the salary for this role?",
+            name: "salary",
+            validate: numValidator
+        }
+    ]
+    inquirer.prompt(addRoleQuestions)
+        .then(async (data) => {
+            const { roleName, departmentName, salary } = data
+            db.query(`INSERT INTO role (title,salary,department_id) 
+                SELECT ?,?,id FROM department WHERE name = ?;`, [roleName, salary, departmentName], (err, results) => {
+                if (err) {
+                    console.log(err);
+                }
+                console.log(results);
+                console.log("Success!");
+                viewRoles();
+            })
+        })
+}
+
+async function addEmployee() {
+    let roleArr = await roleArray()
+    roleArr = roleArr.map(i => i.title)
+    let managerArr = await managerArray()
+    managerArr = managerArr.map(j => j.manager_name)
+    console.log(managerArr)
+    const addEmployeeQuestions = [
+        {
+            type: "input",
+            message: "What is the employee's first name?",
+            name: "firstName",
+            validate: validator
+        },
+        {
+            type: "input",
+            message: "What is the employee's last name?",
+            name: "lastName",
+            validate: validator
+        },
+        {
+            type: "list",
+            message: "What is the employee's role?",
+            name: "roleName",
+            choices: roleArr
+        },
+        {
+            type: "list",
+            message: "Who is the employee's manager?",
+            name: "managerName",
+            choices: managerArr // TODO: Add "no manager" 
+        },
+    ]
+    inquirer.prompt(addEmployeeQuestions)
+        .then(async (data) => {
+            console.log(data)
+            const { firstName, lastName, roleName, managerName } = data
+            let managerId = await db.query('SELECT id FROM employee WHERE CONCAT(first_name," ",last_name) = ?',data,(err,results)=>{
+                return results
+            })
+            console.log(managerId)
+            // db.query(`INSERT INTO employee (first_name,last_name,role_id) SELECT ?,?,id FROM role WHERE title = ?;`,
+            //     [firstName, lastName, roleName], (err, results) => {
+            //         if (err) {
+            //             console.log(err);
+            //         }
+            //         console.log(`Successfully added ${firstName} ${lastName}`);
+            //     })
+            // db.query(`
+            // UPDATE employee
+            // SET manager_id = (SELECT id FROM employee WHERE CONCAT(first_name," ",last_name) = 'John Smith')
+            // WHERE employee.first_name = ? AND employee.last_name = ?;`, [firstName, lastName], (err, results) => {
+            //     if (err) {
+            //         console.log(err);
+            //     }
+            //     console.log(`Successfully added ${managerName} as the manager`);
+            //     viewEmployees();
+            // })
+        })
+}
+
+const initQuestions = () => {
+    inquirer.prompt(introQuestions)
+        .then((data) => {
+            //switch statement 
+            switch (data.intro) {
+                case "View all departments":
+                    viewDepartments();
+                    break;
+                case "View all roles":
+                    viewRoles();
+                    break;
+                case "View all employees":
+                    viewEmployees();
+                    break;
+                case "Add a department":
+                    addDepartment();
+                    break;
+                case "Add a role":
+                    addRole();
+                    break;
+                case "Add an employee":
+                    addEmployee();
+                    break;
+                // "Update an employee role",
+                case "Exit application":
+                    console.log("Thank you. Goodbye!")
+                    process.exit();
+            }
+            // console.log(`${data.intro} is being asked`)
+        })
+        .catch((err) => console.log(err))
 }
 
 // init function
 const init = () => {
     console.log("Welcome to the employee tracker!")
-    inquirer.prompt(introQuestions)
-    .then((data)=>{
-        //switch statement 
-        switch (data.intro){
-            case "View all departments":
-                viewDepartments();
-                break;
-            case "View all roles":
-                viewRoles();
-                break;
-            case "Add a department":
-                addDepartment();
-                break;
-                // "Add a role",
-            // "Add an employee",
-            // "Update an employee role",
-            case "Exit application":
-                console.log("Thank you. Goodbye!")
-                process.exit();        
-            }
-        // console.log(`${data.intro} is being asked`)
-    })
-    // .then(init)
-    .catch((err)=>console.log(err))
+    initQuestions()
 }
 init()
 
 // styling upon init 
-
-// db.query(`DELETE FROM favorite_books WHERE id = ?`, deletedRow, (err, result) => {
-//     if (err) {
-//       console.log(err);
-//     }
-//     console.log(result);
-//   });
-  
-//   // Query database
-//   db.query('SELECT * FROM favorite_books', function (err, results) {
-//     console.log(results);
-//   });
-
-
-// When I choose view all departments
-// Then a table with department names and dept IDs
-
-// When I view all roles 
-// Then a table with job title, role id, departments, salary
-
-// When I choose to view all employees
-// Then employee data: emp ID, first name, last name, job title, dept, salary, manager
-
-// When I add a department
-// Enter name of dept 
-// Create a value in department table 
 
 // When I add a role 
 // Enter role name
