@@ -196,34 +196,27 @@ async function addEmployee() {
             type: "list",
             message: "Who is the employee's manager?",
             name: "managerName",
-            choices: managerArr // TODO: Add "no manager" 
+            choices: [...managerArr,'No manager']
         },
     ]
     inquirer.prompt(addEmployeeQuestions)
         .then(async (data) => {
             console.log(data)
             const { firstName, lastName, roleName, managerName } = data
-            let managerId = await db.query('SELECT id FROM employee WHERE CONCAT(first_name," ",last_name) = ?',data,(err,results)=>{
-                return results
-            })
-            console.log(managerId)
-            // db.query(`INSERT INTO employee (first_name,last_name,role_id) SELECT ?,?,id FROM role WHERE title = ?;`,
-            //     [firstName, lastName, roleName], (err, results) => {
-            //         if (err) {
-            //             console.log(err);
-            //         }
-            //         console.log(`Successfully added ${firstName} ${lastName}`);
-            //     })
-            // db.query(`
-            // UPDATE employee
-            // SET manager_id = (SELECT id FROM employee WHERE CONCAT(first_name," ",last_name) = 'John Smith')
-            // WHERE employee.first_name = ? AND employee.last_name = ?;`, [firstName, lastName], (err, results) => {
-            //     if (err) {
-            //         console.log(err);
-            //     }
-            //     console.log(`Successfully added ${managerName} as the manager`);
-            //     viewEmployees();
-            // })
+            var managerId = undefined
+            await db.query('SELECT id FROM employee WHERE CONCAT(first_name," ",last_name) = ?',managerName)
+                .then((results)=>{
+                    if(managerName === "No manager"){
+                        return
+                    }
+                    managerId = results[0].id
+                })
+                .catch((err)=>console.log(err))
+            await db.query(`INSERT INTO employee (first_name,last_name,role_id,manager_id) SELECT ?,?,id,? FROM role WHERE title = ?;`,
+                [firstName, lastName, managerId, roleName])
+                .then((results)=>console.log(`Successfully added ${firstName} ${lastName} with manager ${managerName}`))
+                .catch((err)=>console.log(err))
+            viewEmployees();
         })
 }
 
