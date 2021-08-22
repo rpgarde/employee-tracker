@@ -12,5 +12,4 @@ VALUES  ("Tech Lead",200000,1),
 INSERT INTO employee (first_name,last_name,role_id,manager_id)
 VALUES  ("John","Smith",1,NULL),
         ("Paolo","Garde",2,NULL),
-        ("Tim","Cook",3,1),
-        ("Jeff","Bezos",4,NULL);
+        ("Tim","Cook",3,1);

@@ -3,7 +3,7 @@ const mysql = require('mysql2');
 const cTable = require('console.table');
 require('dotenv').config();
 const util = require("util");
-// const { POINT_CONVERSION_COMPRESSED } = require("constants");
+//ascii package
 const Font = require('ascii-art-font');
 
 const db = mysql.createConnection(
@@ -18,6 +18,7 @@ const db = mysql.createConnection(
 
 db.query = util.promisify(db.query);
 
+// Inquirer validators 
 const validator = (input) => {
     if (input.length === 0) {
         return 'Please provide an input';
@@ -57,16 +58,16 @@ const employeeArray = () => {
 
 //Function to view all depts
 const viewDepartments = () => {
-    console.log("Here are all the departments:")
+    console.log("\nHere are all the departments:\n")
     db.query('SELECT * FROM department', function (err, results) {
         console.table(results);
         setTimeout(initQuestions, 1000);
     });
 }
 
-//View all rolesTHEN I am presented with the job title, role id, the department that role belongs to, and the salary for that role
+//View all roles
 const viewRoles = () => {
-    console.log("Here are all the roles:")
+    console.log("\nHere are all the roles:\n")
     db.query(`SELECT r.title,r.id as role_id,d.name as department,salary 
         FROM role r
         JOIN department d ON r.department_id = d.id`, function (err, results) {
@@ -77,7 +78,7 @@ const viewRoles = () => {
 
 //View all employees
 const viewEmployees = () => {
-    console.log("Here are all the employees:")
+    console.log("\nHere are all the employees:\n")
     db.query(
         `SELECT 
       e.ID as employee_id,
@@ -113,12 +114,13 @@ const addDepartment = async () => {
         .then(async (data) => {
             await db.query(`INSERT INTO department (name) VALUES (?)`, data.departmentName)
                 .then((results) => {
-                    console.log(`You have successfully added ${data.departmentName}`)
+                    console.log(`\nYou have successfully added ${data.departmentName}\n`)
                 })
         })
-    setTimeout(initQuestions(), 1000);
+    setTimeout(initQuestions, 1000);
 }
 
+// Add new role 
 async function addRole() {
     const addRoleQuestions = [
         {
@@ -145,13 +147,15 @@ async function addRole() {
             const { roleName, departmentName, salary } = data
             await db.query(`INSERT INTO role (title,salary,department_id) 
                 SELECT ?,?,id FROM department WHERE name = ?;`, [roleName, salary, departmentName])
-                .then((results) => console.log(`You have successfully added ${roleName} to ${departmentName}`))
+                .then((results) => console.log(`\nYou have successfully added ${roleName} to ${departmentName}\n`))
                 .catch((err) => console.log(err))
             setTimeout(initQuestions, 1000);
         })
 }
 
+// Add new employee
 async function addEmployee() {
+    // Build arrays for choices
     let roleArr = await roleArray()
     roleArr = roleArr.map(i => i.title)
     let managerArr = await managerArray()
@@ -199,12 +203,13 @@ async function addEmployee() {
             // add a new row in employee based on the collected data
             await db.query(`INSERT INTO employee (first_name,last_name,role_id,manager_id) SELECT ?,?,id,? FROM role WHERE title = ?;`,
                 [firstName, lastName, managerId, roleName])
-                .then((results) => console.log(`Successfully added ${firstName} ${lastName} with manager ${managerName}`))
+                .then((results) => console.log(`\nSuccessfully added ${firstName} ${lastName} with manager ${managerName}\n`))
                 .catch((err) => console.log(err))
             setTimeout(initQuestions, 1000);
         })
 }
 
+// update employee roles 
 async function updateEmployeeRole() {
     let employeeArr = await employeeArray()
     let roleArr = await roleArray()
@@ -226,22 +231,24 @@ async function updateEmployeeRole() {
     inquirer.prompt(updateEmployeeRoleQuestions)
         .then(async (data) => {
             const { employeeName, roleName } = data
-            //UPDATE
+            // get role id based on role name 
             var roleId = undefined
             await db.query('SELECT id FROM role WHERE title = ?', roleName)
                 .then((results) => {
                     roleId = results[0].id
                 })
                 .catch((err) => console.log(err))
+            // update employee information based on role_id
             await db.query(`UPDATE employee SET role_id = ? WHERE CONCAT(first_name," ",last_name) = ?`, [roleId, employeeName])
                 .then((results) => {
-                    console.log(`Successfuly updated ${employeeName}'s role to ${roleName}`)
+                    console.log(`\nSuccessfuly updated ${employeeName}'s role to ${roleName}\n`)
                 })
                 .catch((err) => console.log(err))
             setTimeout(initQuestions, 1000);
         })
 }
 
+// View total costs per department
 async function viewTotalCosts() {
     const departmentArr = await departmentArray()
     inquirer.prompt([{
@@ -251,7 +258,7 @@ async function viewTotalCosts() {
         choices: departmentArr
     }])
         .then(async (data) => {
-            console.log(`Here is how much the ${data.departmentName} department is spending \n`)
+            console.log(`\nHere is how much the ${data.departmentName} department is spending \n`)
             await db.query(`SELECT 
                 d.name as department,
                 SUM(salary) as total_salary_costs,
@@ -270,6 +277,7 @@ async function viewTotalCosts() {
         })
 }
 
+// View all employees by manager
 async function viewByManager() {
     let managerOnlyArr = await managerOnlyArray()
     managerOnlyArr = managerOnlyArr.map(j => j.manager_name)
@@ -280,7 +288,7 @@ async function viewByManager() {
         choices: managerOnlyArr
     }])
         .then(async (data) => {
-            console.log(`Here's who is in ${data.managerName} department\n`)
+            console.log(`\nHere's who is in ${data.managerName} department\n`)
             await db.query(`SELECT 
                 e.ID as employee_id,
                 e.first_name,
@@ -303,6 +311,7 @@ async function viewByManager() {
         })
 }
 
+// View all employees by department
 async function viewByDepartment() {
     const departmentArr = await departmentArray()
     inquirer.prompt([{
@@ -312,7 +321,7 @@ async function viewByDepartment() {
         choices: departmentArr
     }])
         .then(async (data) => {
-            console.log(`Here's who is in ${data.departmentName} department\n`)
+            console.log(`\nHere's who is in ${data.departmentName} department\n`)
             await db.query(`SELECT 
                 e.ID as employee_id,
                 e.first_name,
