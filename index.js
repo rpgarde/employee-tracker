@@ -12,6 +12,50 @@ const db = mysql.createConnection(
     console.log(`Connected to the books_db database.`)
   );
 
+// const validator = (input) => {
+//     if (input.length === 0) {
+//         return 'Please provide an input';
+//     }
+//     else {
+//         return true;
+//     }
+// }
+
+// const numValidator = (input) => {
+//     if (isNaN(input)) {
+//         return "please enter a number";
+//     }
+//     return true;
+// }
+
+const introQuestions = [
+    {
+        type: "list",
+        message: "What would you like to do?",
+        name: "intro",
+        choices: [
+            "View all departments",
+            "View all roles",
+            "Add a department",
+            "Add a role",
+            "Add an employee",
+            "Update an employee role",
+            "Exit application"
+        ]
+    }
+]
+
+// init function
+const init = () => {
+    console.log("Welcome to the employee tracker!")
+    inquirer.prompt(introQuestions)
+    .then((data)=>{
+        console.log(`${data.intro} is being asked`)
+    })
+    .catch((err)=>console.log(err))
+}
+init()
+
 // styling upon init 
 
 // Inquirer list with the following options
