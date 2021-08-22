@@ -11,7 +11,7 @@ const db = mysql.createConnection(
         password: process.env.DB_PASSWORD,
         database: process.env.DB_NAME
     },
-    console.log(`Connected to the books_db database.`)
+    console.log(`Connected to the employees_db database.`)
 );
 
 db.query = util.promisify(db.query);
@@ -71,19 +71,19 @@ const managerArray = () => {
     return db.query('SELECT CONCAT(first_name," ",last_name) as manager_name from employee')
 }
 
+const employeeArray = () => {
+    return db.query('SELECT CONCAT(first_name," ",last_name) as name, id from employee')
+}
+
 //Function to view all depts
 const viewDepartments = () => {
     console.log("Here are all the departments:")
     db.query('SELECT * FROM department', function (err, results) {
-        if(err){
-            console.log(err)
-        }
-        return results
+        console.table(results)
     });
 }
 
 //View all rolesTHEN I am presented with the job title, role id, the department that role belongs to, and the salary for that role
-
 const viewRoles = () => {
     console.log("Here are all the roles:")
     db.query(`SELECT r.title,r.id as role_id,d.name as department,salary 
@@ -113,23 +113,21 @@ const viewEmployees = () => {
       LEFT JOIN employee m ON e.manager_id = m.id 
       `, function (err, results) {
         console.table(results)
-    });
+        initQuestions(); 
+    })
 }
 
 //Add departments
-const addDepartment = () => {
-    inquirer.prompt(addDepartmentQuestion)
-        .then((data) => {
-            db.query(`INSERT INTO department (name) VALUES (?)`, data.departmentName, (err, results) => {
-                if (err) {
-                    console.log(err);
-                }
-                console.log(results);
-                console.log("Success!");
-                viewDepartments();
+const addDepartment = async () => {
+    await inquirer.prompt(addDepartmentQuestion)
+        .then(async (data) => {
+            await db.query(`INSERT INTO department (name) VALUES (?)`, data.departmentName)
+                .then((results) => {
+                    console.log(`You have successfully added ${data.departmentName}`)
+                })
             })
-        })
-}
+    initQuestions(); 
+} 
 
 async function addRole() {
     const addRoleQuestions = [
@@ -155,15 +153,11 @@ async function addRole() {
     inquirer.prompt(addRoleQuestions)
         .then(async (data) => {
             const { roleName, departmentName, salary } = data
-            db.query(`INSERT INTO role (title,salary,department_id) 
-                SELECT ?,?,id FROM department WHERE name = ?;`, [roleName, salary, departmentName], (err, results) => {
-                if (err) {
-                    console.log(err);
-                }
-                console.log(results);
-                console.log("Success!");
-                viewRoles();
-            })
+            await db.query(`INSERT INTO role (title,salary,department_id) 
+                SELECT ?,?,id FROM department WHERE name = ?;`, [roleName, salary, departmentName])
+                .then((results) => console.log(`You have successfully added ${roleName} to ${departmentName}`))
+                .catch((err) => console.log(err))
+            initQuestions();
         })
 }
 
@@ -204,6 +198,7 @@ async function addEmployee() {
             console.log(data)
             const { firstName, lastName, roleName, managerName } = data
             var managerId = undefined
+            // get manager's employee ID based on their name
             await db.query('SELECT id FROM employee WHERE CONCAT(first_name," ",last_name) = ?',managerName)
                 .then((results)=>{
                     if(managerName === "No manager"){
@@ -212,11 +207,51 @@ async function addEmployee() {
                     managerId = results[0].id
                 })
                 .catch((err)=>console.log(err))
+            // add a new row in employee based on the collected data
             await db.query(`INSERT INTO employee (first_name,last_name,role_id,manager_id) SELECT ?,?,id,? FROM role WHERE title = ?;`,
                 [firstName, lastName, managerId, roleName])
                 .then((results)=>console.log(`Successfully added ${firstName} ${lastName} with manager ${managerName}`))
                 .catch((err)=>console.log(err))
-            viewEmployees();
+            await viewEmployees();
+            initQuestions();
+        })
+}
+
+async function updateEmployeeRole() {
+    let employeeArr = await employeeArray()
+    let roleArr = await roleArray()
+    roleArr = roleArr.map(i => i.title)
+    const updateEmployeeRoleQuestions = [
+        {
+            type: "list",
+            message: "Which employee would you like to modify?",
+            name: "employeeName",
+            choices: employeeArr
+        },
+        {
+            type: "list",
+            message: "What role would you like to change to?",
+            name: "roleName",
+            choices: roleArr
+        }
+    ]
+    inquirer.prompt(updateEmployeeRoleQuestions)
+        .then(async (data) => {
+            const { employeeName, roleName } = data
+            //UPDATE
+            var roleId = undefined
+            await db.query('SELECT id FROM role WHERE title = ?',roleName)
+            .then((results)=>{
+                roleId = results[0].id
+            })
+            .catch((err)=>console.log(err))
+            await db.query(`UPDATE employee SET role_id = ? WHERE CONCAT(first_name," ",last_name) = ?`,[roleId,employeeName])
+            .then((results)=>{
+                console.log(`Successfuly updated ${employeeName}'s role to ${roleName}`)
+            })
+            .catch((err)=>console.log(err))
+        await viewEmployees();
+        initQuestions();
         })
 }
 
@@ -243,7 +278,9 @@ const initQuestions = () => {
                 case "Add an employee":
                     addEmployee();
                     break;
-                // "Update an employee role",
+                case "Update an employee role":
+                    updateEmployeeRole();
+                    break;
                 case "Exit application":
                     console.log("Thank you. Goodbye!")
                     process.exit();
@@ -258,22 +295,5 @@ const init = () => {
     console.log("Welcome to the employee tracker!")
     initQuestions()
 }
+
 init()
-
-// styling upon init 
-
-// When I add a role 
-// Enter role name
-// Enter salary (numbers)
-// Enter department ()
-
-
-// When I add an employee
-// Enter first name, last name, role, and manager
-
-// When I update an employee role 
-// Pull all employees and place into a list 
-// Once I select employee
-// Pull all available roles 
-// Once I select available roles 
-// Update database 
