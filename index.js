@@ -3,6 +3,8 @@ const mysql = require('mysql2');
 const cTable = require('console.table');
 require('dotenv').config();
 const util = require("util");
+// const { POINT_CONVERSION_COMPRESSED } = require("constants");
+const Font = require('ascii-art-font');
 
 const db = mysql.createConnection(
     {
@@ -59,6 +61,7 @@ const addDepartmentQuestion = [
     }
 ]
 
+// Array builders for choices
 const departmentArray = () => {
     return db.query('SELECT DISTINCT name from department')
 }
@@ -79,7 +82,8 @@ const employeeArray = () => {
 const viewDepartments = () => {
     console.log("Here are all the departments:")
     db.query('SELECT * FROM department', function (err, results) {
-        console.table(results)
+        console.table(results);
+        setTimeout(initQuestions,1000);
     });
 }
 
@@ -89,7 +93,8 @@ const viewRoles = () => {
     db.query(`SELECT r.title,r.id as role_id,d.name as department,salary 
         FROM role r
         JOIN department d ON r.department_id = d.id`, function (err, results) {
-        console.table(results)
+        console.table(results);
+        setTimeout(initQuestions,1000);
     });
 }
 
@@ -126,7 +131,7 @@ const addDepartment = async () => {
                     console.log(`You have successfully added ${data.departmentName}`)
                 })
             })
-    initQuestions(); 
+    setTimeout(initQuestions(), 1000);
 } 
 
 async function addRole() {
@@ -157,7 +162,7 @@ async function addRole() {
                 SELECT ?,?,id FROM department WHERE name = ?;`, [roleName, salary, departmentName])
                 .then((results) => console.log(`You have successfully added ${roleName} to ${departmentName}`))
                 .catch((err) => console.log(err))
-            initQuestions();
+            setTimeout(initQuestions,1000);
         })
 }
 
@@ -166,7 +171,6 @@ async function addEmployee() {
     roleArr = roleArr.map(i => i.title)
     let managerArr = await managerArray()
     managerArr = managerArr.map(j => j.manager_name)
-    console.log(managerArr)
     const addEmployeeQuestions = [
         {
             type: "input",
@@ -212,8 +216,7 @@ async function addEmployee() {
                 [firstName, lastName, managerId, roleName])
                 .then((results)=>console.log(`Successfully added ${firstName} ${lastName} with manager ${managerName}`))
                 .catch((err)=>console.log(err))
-            await viewEmployees();
-            initQuestions();
+            setTimeout(initQuestions,1000);
         })
 }
 
@@ -250,8 +253,7 @@ async function updateEmployeeRole() {
                 console.log(`Successfuly updated ${employeeName}'s role to ${roleName}`)
             })
             .catch((err)=>console.log(err))
-        await viewEmployees();
-        initQuestions();
+        setTimeout(initQuestions,1000);
         })
 }
 
@@ -285,15 +287,17 @@ const initQuestions = () => {
                     console.log("Thank you. Goodbye!")
                     process.exit();
             }
-            // console.log(`${data.intro} is being asked`)
         })
         .catch((err) => console.log(err))
 }
 
 // init function
 const init = () => {
-    console.log("Welcome to the employee tracker!")
-    initQuestions()
+    Font.create('Employee Tracker', 'Doom', (err, result) => {
+        if (err) throw err;
+        console.log(result);
+        setTimeout(initQuestions,500);
+    })
 }
 
 init()
