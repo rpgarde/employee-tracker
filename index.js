@@ -1,12 +1,14 @@
 const inquirer = require("inquirer");
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
 const cTable = require('console.table');
 require('dotenv').config();
-const util = require("util");
+// const util = require("util");
 //ascii package
 const Font = require('ascii-art-font');
 
-const db = mysql.createConnection(
+let db;
+
+mysql.createConnection(
     {
         host: 'localhost',
         user: process.env.DB_USER,
@@ -14,9 +16,13 @@ const db = mysql.createConnection(
         database: process.env.DB_NAME
     },
     console.log(`Connected to the employees_db database.`)
-);
+).then(connection => {
+    console.log(connection.config);
+    db = connection;
+    init();
+});
 
-db.query = util.promisify(db.query);
+// db.query = util.promisify(db.query);
 
 // Inquirer validators 
 const validator = (input) => {
@@ -57,26 +63,44 @@ const employeeArray = () => {
 }
 
 //Function to view all depts
-const viewDepartments = () => {
+// const viewDepartments = () => {
+//     console.log("\nHere are all the departments:\n")
+
+//     db.query('SELECT * FROM department').then(results => {
+//         console.table(results[0]);
+//         initQuestions();
+//     }).catch(error => console.log(error));
+// }
+
+const viewDepartments = async () => {
     console.log("\nHere are all the departments:\n")
-    db.query('SELECT * FROM department', function (err, results) {
-        console.table(results);
-        setTimeout(initQuestions, 1000);
-    });
+
+    try {
+        const results = await db.query('SELECT * FROM department');
+        
+        console.table(results[0]);
+    }
+    catch(error) {
+        console.log(error);
+    }
+
+    initQuestions();
 }
 
 //View all roles
-const viewRoles = () => {
-    console.log("\nHere are all the roles:\n")
-    db.query(`SELECT r.title,r.id as role_id,d.name as department,salary 
-        FROM role r
-        JOIN department d ON r.department_id = d.id`, function (err, results) {
-        console.table(results);
-        setTimeout(initQuestions, 1000);
-    });
+const viewRoles = async () => {
+    console.log("\nHere are all the roles:\n");
+
+    const results = await db.query(`SELECT r.title,r.id as role_id,d.name as department,salary 
+        FROM role r JOIN department d ON r.department_id = d.id`);
+        
+    console.table(results);
+
+    initQuestions();
 }
 
 //View all employees
+// TODO: fix this
 const viewEmployees = () => {
     console.log("\nHere are all the employees:\n")
     db.query(
@@ -110,14 +134,25 @@ const addDepartment = async () => {
             validate: validator
         }
     ]
-    await inquirer.prompt(addDepartmentQuestion)
-        .then(async (data) => {
-            await db.query(`INSERT INTO department (name) VALUES (?)`, data.departmentName)
-                .then((results) => {
-                    console.log(`\nYou have successfully added ${data.departmentName}\n`)
-                })
-        })
-    setTimeout(initQuestions, 1000);
+
+    try {
+        const answer = await inquirer.prompt(addDepartmentQuestion);
+        console.log('answer', answer)
+        
+        const dbResult = await db.query(`INSERT INTO department (name) VALUES (?)`, answer.departmentName);
+        
+        console.log(dbResult);
+        
+        if (dbResult[0].insertId)
+            console.log(`\nYou have successfully added ${answer.departmentName}\n`);
+        else
+            console.log(`Couldn't add the department`);
+    }
+    catch (e) {
+        console.log(e.message)
+    }
+
+    initQuestions();
 }
 
 // Add new role 
@@ -142,15 +177,12 @@ async function addRole() {
             validate: numValidator
         }
     ]
-    inquirer.prompt(addRoleQuestions)
-        .then(async (data) => {
-            const { roleName, departmentName, salary } = data
-            await db.query(`INSERT INTO role (title,salary,department_id) 
-                SELECT ?,?,id FROM department WHERE name = ?;`, [roleName, salary, departmentName])
-                .then((results) => console.log(`\nYou have successfully added ${roleName} to ${departmentName}\n`))
-                .catch((err) => console.log(err))
-            setTimeout(initQuestions, 1000);
-        })
+    const { roleName, departmentName, salary } = await inquirer.prompt(addRoleQuestions);
+
+    const dbResult = await db.query(`INSERT INTO role (title,salary,department_id) 
+        SELECT ?,?,id FROM department WHERE name = ?;`, [roleName, salary, departmentName]);
+    
+    console.log(`\nYou have successfully added ${roleName} to ${departmentName}\n`);
 }
 
 // Add new employee
@@ -412,8 +444,9 @@ const init = () => {
     Font.create('Employee Tracker', 'Doom', (err, result) => {
         if (err) throw err;
         console.log(result);
-        setTimeout(initQuestions, 500);
+        initQuestions();
+        // setTimeout(initQuestions, 500);
     })
 }
 
-init()
+// init()
